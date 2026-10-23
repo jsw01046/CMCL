@@ -167,11 +167,14 @@ function renderTable() {
     for (const item of visible) {
         const row = el('tr');
 
+        const displayName = item.display_name || item.id;
         const nameCell = el('td', {
             className: 'name-cell col-name',
-            title: item.id,
+            title: item.display_name
+                ? `${item.display_name} (${item.id})`
+                : item.id,
         });
-        nameCell.append(el('span', { className: 'name-main', text: item.id }));
+        nameCell.append(el('span', { className: 'name-main', text: displayName }));
         const detailText = item.valid
             ? (item.inherits_from ? '继承 ' + item.inherits_from : (item.main_class || '—'))
             : (item.error || '版本文件缺失');

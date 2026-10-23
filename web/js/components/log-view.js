@@ -1,6 +1,6 @@
 import { el, clear, fmtDuration } from '../utils.js';
 import { setStatus } from '../ui.js';
-import { openCrashReport } from './crash-report.js';
+import { openCrashReport, sendCrashToGitHub } from './crash-report.js';
 
 const LOG_LIMIT = 4000;
 
@@ -83,18 +83,33 @@ export function createLogView() {
     const summaryList = el('ul');
     const unknownBox = el('div', { className: 'unknown-box hidden' });
     const unknownActions = el('div', { className: 'unknown-actions' });
-    unknownActions.append(el('button', {
-        className: 'btn primary small',
-        type: 'button',
-        text: '导出崩溃报告…',
-        onclick: () => {
-            if (currentSummary) openCrashReport(currentSummary);
-        },
-    }));
+    unknownActions.append(
+        el('button', {
+            className: 'btn primary small',
+            type: 'button',
+            text: '发送到 GitHub Issue',
+            onclick: () => {
+                if (!currentSummary) return;
+                sendCrashToGitHub(currentSummary).catch((error) => {
+                    setStatus('打开 GitHub 失败：' +
+                        (error?.message || String(error)));
+                });
+            },
+        }),
+        el('button', {
+            className: 'btn ghost small',
+            type: 'button',
+            text: '导出崩溃报告…',
+            onclick: () => {
+                if (currentSummary) openCrashReport(currentSummary);
+            },
+        }),
+    );
     unknownBox.append(
         el('strong', { text: '未识别的崩溃特征' }),
         el('p', {
-            text: '日志里没有匹配到已知特征。可以导出完整报告，复制后发送给开发者。',
+            text: '日志里没有匹配到已知特征。可以直接发送到 GitHub Issue' +
+                '（提交前可以修改），或先导出完整报告。',
         }),
         unknownActions,
     );

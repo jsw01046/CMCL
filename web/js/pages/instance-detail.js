@@ -228,7 +228,12 @@ function updateButtons() {
 }
 
 function applyInfo(data) {
-    detailTitle.textContent = data.id || id;
+    const displayName = store.instance(data.id)?.display_name || data.id || id;
+    detailTitle.textContent = displayName;
+    setBreadcrumb([
+        { text: '版本管理', href: '#/instances' },
+        displayName,
+    ]);
     detailBadge.textContent = typeLabel(data.type);
     detailBadge.className = 'badge ' + badgeClass(data.type);
 

@@ -241,7 +241,7 @@ async function selectInstance(id) {
     list.setSelected(id);
 
     inspectError = false;
-    detailTitle.textContent = id;
+    detailTitle.textContent = store.instance(id)?.display_name || id;
     detailBadge.textContent = '';
     detailBadge.className = 'badge';
     detailLoaderBadge.textContent = '';
@@ -271,7 +271,9 @@ async function selectInstance(id) {
 }
 
 function renderDetail(info) {
-    detailTitle.textContent = info.id || selectedId || '版本';
+    detailTitle.textContent =
+        store.instance(info.id)?.display_name ||
+        info.id || selectedId || '版本';
     detailBadge.textContent = typeLabel(info.type);
     detailBadge.className = 'badge ' + badgeClass(info.type);
 

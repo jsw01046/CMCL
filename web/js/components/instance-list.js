@@ -22,7 +22,9 @@ export function createInstanceList({ onSelect, onActivate = null } = {}) {
             } else if (loaderFilter && item.loader !== loaderFilter) {
                 return false;
             }
-            return !keyword || item.id.toLowerCase().includes(keyword);
+            if (!keyword) return true;
+            return item.id.toLowerCase().includes(keyword) ||
+                String(item.display_name || '').toLowerCase().includes(keyword);
         });
 
         if (!visible.length) {
@@ -40,10 +42,15 @@ export function createInstanceList({ onSelect, onActivate = null } = {}) {
                     (item.valid ? '' : ' invalid'),
             });
             card.dataset.id = item.id;
-            card.title = item.id;
+            card.title = item.display_name
+                ? `${item.display_name} (${item.id})`
+                : item.id;
 
             const top = el('div', { className: 'instance-top' });
-            top.append(el('span', { className: 'instance-name', text: item.id }));
+            top.append(el('span', {
+                className: 'instance-name',
+                text: item.display_name || item.id,
+            }));
 
             const badge = el('span', {
                 className: item.valid

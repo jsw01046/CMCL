@@ -61,6 +61,14 @@ std::optional<size_t> first_index_any(
     return std::nullopt;
 }
 
+bool has_all(const std::vector<std::string>& lower,
+             std::initializer_list<std::string_view> needles) {
+    for (const auto needle : needles) {
+        if (!first_index(lower, needle)) return false;
+    }
+    return true;
+}
+
 std::string exit_hint(int code) {
     switch (code) {
         case 1:
@@ -263,6 +271,9 @@ RunSummary analyze_run(int exit_code, const std::vector<std::string>& lines,
 
     std::vector<AnalysisFinding> findings;
     std::set<std::string> seen;
+    // 有些加载器失败时进程仍返回 0（例如 FML 的 Unable to launch）。
+    // 这类发现必须覆盖“正常退出”的判断。
+    bool fatal_finding = false;
 
     const bool offline_auth =
         first_index(lower, "failed to fetch user properties").has_value() ||
@@ -375,6 +386,115 @@ RunSummary analyze_run(int exit_code, const std::vector<std::string>& lines,
         finding.event = clip(lines[*index], 600);
         finding.evidence = evidence_near(lines, *index);
         add_finding(findings, seen, std::move(finding));
+    }
+
+    // ---- 旧版 Forge / 模组在 Java 9+ 上的类加载器强转 ----
+    if (has_all(lower, {"classcastexception", "appclassloader",
+                        "urlclassloader"})) {
+        const size_t index = *first_index(lower, "classcastexception");
+        auto finding = make_finding(
+            "java.legacy_classloader", "java",
+            "旧版 Forge / 模组需要 Java 8",
+            "日志里出现 AppClassLoader 无法转换为 URLClassLoader。Java 9 起系统"
+            "类加载器不再是 URLClassLoader，1.6.4 - 1.12.2 的 Forge 或旧模组会"
+            "因此直接崩溃。",
+            "error");
+        finding.suggestions = {
+            "给这个旧版本使用 Java 8（Temurin 8 / Microsoft OpenJDK 8）",
+            "在启动器里为实例指定 Java 8，不要使用 Java 17 / 21 / 25",
+            "Forge 1.6.1 - 1.7.2 也可以尝试 Java 7"};
+        finding.time = timestamp_near(lines, index);
+        finding.event = clip(lines[index], 600);
+        finding.evidence = evidence_near(lines, index);
+        add_finding(findings, seen, std::move(finding));
+        fatal_finding = true;
+    }
+
+    // ---- Java 安装文件缺失（被清理工具误删的典型特征） ----
+    if (first_index(lower, "filenotfoundexception") &&
+        (first_index(lower, "tzdb.dat") ||
+         first_index(lower, "java.security"))) {
+        const size_t index = *first_index(lower, "filenotfoundexception");
+        auto finding = make_finding(
+            "java.install_corrupt", "java", "Java 安装不完整",
+            "Java 缺少 lib/tzdb.dat 或 conf/security/java.security，通常是 JDK "
+            "文件被清理工具或杀毒软件删除。java -version 可能仍能运行，但游戏会在"
+            "初始化时区或安全配置时崩溃。",
+            "error");
+        finding.suggestions = {
+            "在启动器设置 → Java 中重新下载对应版本",
+            "不要用第三方清理工具扫描 JDK 目录",
+            "删除损坏的 JDK 后重新安装"};
+        finding.time = timestamp_near(lines, index);
+        finding.event = clip(lines[index], 600);
+        finding.evidence = evidence_near(lines, index);
+        add_finding(findings, seen, std::move(finding));
+        fatal_finding = true;
+    }
+
+    // ---- Forge 二进制补丁失败 / FML 拒绝启动 ----
+    const bool fml_patch_failure =
+        first_index(lower, "classpatchmanager").has_value() &&
+        (first_index(lower, "nullpointerexception").has_value() ||
+         first_index(lower, "your vanilla jar may be corrupt").has_value() ||
+         first_index(lower, "patcher expecting non-empty class data")
+             .has_value());
+    if (fml_patch_failure) {
+        const size_t index = *first_index(lower, "classpatchmanager");
+        auto finding = make_finding(
+            "forge.binary_patch", "loader", "Forge 二进制补丁失败",
+            "Forge 在给原版 jar 打补丁时失败（ClassPatchManager / 空指针）。"
+            "常见原因：实例路径含 ☆、emoji 等非 ASCII 字符，Java 8 读不到 jar；"
+            "原版 jar 不是该 Forge 对应的版本；或整合包使用了被修改过的 jar。",
+            "error");
+        finding.suggestions = {
+            "把实例目录、JSON 和 jar 改成纯英文/数字名称后重试",
+            "确认使用 Java 8，并让启动器重新准备对应版本的原版 jar",
+            "1.6.4 - 1.12.2 的 Forge 需要原版客户端 + 服务端合并 jar",
+            "不要把 OptiFine 安装器 jar 当作普通库放进 classpath"};
+        finding.time = timestamp_near(lines, index);
+        finding.event = clip(lines[index], 600);
+        finding.evidence = evidence_near(lines, index);
+        add_finding(findings, seen, std::move(finding));
+        fatal_finding = true;
+    } else if (first_index(lower, "unable to launch") &&
+               first_index(lower, "forgemodloader")) {
+        const size_t index = *first_index(lower, "unable to launch");
+        auto finding = make_finding(
+            "forge.launch_failure", "loader", "Forge 拒绝启动",
+            "Forge Mod Loader 在启动阶段主动终止（Unable to launch）。"
+            "通常是 Java 版本、原版 jar、classpath 或前置模组的问题。",
+            "error");
+        finding.suggestions = {
+            "确认版本要求的 Java（旧版 Forge 用 Java 8）",
+            "把实例目录改成纯英文名称，避免 Java 8 读不到路径",
+            "让启动器重新准备原版 jar，或重新安装该加载器",
+            "查看日志中 Unable to launch 后面的第一段异常"};
+        finding.time = timestamp_near(lines, index);
+        finding.event = clip(lines[index], 600);
+        finding.evidence = evidence_near(lines, index);
+        add_finding(findings, seen, std::move(finding));
+        fatal_finding = true;
+    }
+
+    // ---- bspkrsCore 等模组的更新检查器崩溃 ----
+    if (first_index(lower, "modversionchecker") &&
+        first_index(lower, "arrayindexoutofboundsexception")) {
+        const size_t index = *first_index(lower, "modversionchecker");
+        auto finding = make_finding(
+            "mod.version_checker", "mod_crash", "模组更新检查崩溃",
+            "bspkrsCore 的 ModVersionChecker 在解析更新地址时数组越界，"
+            "通常是更新服务器已经失效，与游戏本身无关。",
+            "error");
+        finding.suggestions = {
+            "编辑 config/bspkrsCore.cfg，把 B:allowUpdateCheck 改为 false",
+            "或者移除依赖 bspkrsCore 的模组",
+            "更新 bspkrsCore 到修复版本"};
+        finding.time = timestamp_near(lines, index);
+        finding.event = clip(lines[index], 600);
+        finding.evidence = evidence_near(lines, index);
+        add_finding(findings, seen, std::move(finding));
+        fatal_finding = true;
     }
 
     // ---- 启动器参数 ----
@@ -857,7 +977,8 @@ RunSummary analyze_run(int exit_code, const std::vector<std::string>& lines,
     summary.detail = primary.detail;
     summary.suggestions = primary.suggestions;
     summary.severity = primary.severity;
-    summary.normal = exit_code == 0;
+    // 退出码 0 也可能是加载器拒绝启动（FML 的 Unable to launch）。
+    summary.normal = exit_code == 0 && !fatal_finding;
     // 游戏正常退出时即使日志里有错误，也不要显示成“异常退出”。
     if (summary.normal && summary.severity == "error") {
         summary.severity = "warn";

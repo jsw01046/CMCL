@@ -21,6 +21,7 @@
 - **目录自检与初始化**：启动时自动补齐 `cache` / `jdk` / `natives`；游戏目录不存在时自动创建 `versions` / `libraries` / `assets` / `logs`，不会清理已有文件
 - JVM / 游戏参数模板替换、`--width`、`--height`、`--server`、`--demo`
 - Win32 `CreateProcessW` 启动、输出流读取、Job Object 进程树管理
+- 窗口模式下自动把游戏窗口摆到启动器所在显示器的中央（全屏启动时不动窗口）
 - 离线 UUID（与 Java `UUID.nameUUIDFromBytes` 一致）
 - **WebView2 图形界面**：多级页面（启动 / 版本管理 / 实例详情 / 下载 / 设置），版本列表、参数详情、启动设置、实时日志、启动/停止
   - 无系统标题栏，最小化 / 最大化 / 关闭按钮在页面右上角，支持拖动标题栏和四边缩放
@@ -59,6 +60,11 @@
   - Modrinth `.mrpack`：解析 `modrinth.index.json`，自动安装 Minecraft 与依赖加载器，下载并校验清单文件，解压 `overrides` / `client-overrides`，默认创建完全隔离实例
   - PCL / 普通 `.minecraft` 导出 zip：识别压缩包里的 `.minecraft`（或 `minecraft`）目录，导入自带版本 JSON / JAR / libraries / assets，并把 mods、config、saves、resourcepacks、光影包等复制到实例目录
   - 入口：整合包版本旁的“安装”、搜索页的“导入本地整合包”，以及把 `.mrpack` / `.zip` 直接拖进窗口
+  - **导入后自动兼容**（不需要玩家手动改文件）：
+    - 实例目录 / JSON / 主 jar 使用 ASCII 名称，避免 Java 8 读不到含 `☆`、emoji 等字符的路径；原始整合包名称保存在 `cmcl-modpack.json`，实例列表会显示原始名称
+    - 旧 Forge（1.6.4 - 1.12.2）自动下载对应官方服务端 jar，只提取服务端独有类生成 `minecraft_server_extra`，不会覆盖客户端类
+    - 自动关闭 bspkrsCore 的失效更新检查，避免 `ModVersionChecker` 空数组崩溃拖垮 ArmorStatusHUD 等模组
+    - 兼容处理失败只写日志警告，不阻断整合包导入
   - CurseForge 官方 `manifest.json` 的模组需要 CurseForge API Key 才能解析下载地址，当前会给出明确提示，暂不自动下载
 - **Microsoft 正版登录（M5）**
   - 设备码流程：`login.microsoftonline.com` → Xbox Live 用户认证 → XSTS 授权 → `login_with_xbox` → Minecraft 档案
@@ -247,12 +253,17 @@ Inno 脚本位于 `installer/CMCL.iss`，默认按当前用户安装到
 - **模组版本不匹配 / 缺少运行库**
 - **原生库（LWJGL）加载失败、显卡 / OpenGL 初始化失败、JVM 崩溃**
 - **启动器参数冲突**（如 bootstraplauncher module path 问题）
+- **旧版 Forge / 模组在 Java 9+ 上的类加载器强转**：识别 `AppClassLoader cannot be cast to URLClassLoader`，提示改用 Java 8
+- **Forge 二进制补丁失败**：识别 `ClassPatchManager` 空指针、`your vanilla jar may be corrupt`、FML `Unable to launch`，并提示检查 Java 8、原版 jar 和实例路径中的 `☆` / emoji 等非 ASCII 字符
+- **Java 安装不完整**：识别 `lib/tzdb.dat` 或 `conf/security/java.security` 缺失，提示重新下载 JDK
+- **模组更新检查崩溃**：识别 bspkrsCore `ModVersionChecker` 的数组越界，提示关闭 `allowUpdateCheck`
 - 没有匹配到特征时标记为“未知特征”，按退出码给出通用建议
 
 未知崩溃或任意崩溃都可以点“导出报告”：
 
 - 报告中包含运行环境、分析结论、全部发现、日志末尾和崩溃报告末尾
 - 可以一键复制（直接发给开发者）、保存到 `crash-reports/CMCL-崩溃分析-*.txt`，或打开报告文件夹
+- 点“发送到 GitHub Issue”会在浏览器打开 <https://github.com/jsw01046/CMCL/issues/new>，预填标题和摘要，并把完整报告复制到剪贴板；不会自动提交，提交前可以检查和修改
 - 不会自动上传任何内容；报告可能包含玩家名、路径和模组列表，发送前请确认
 
 CLI 的 `launch` 也会在退出后打印同样的总结。分析逻辑在 `src/mc/diagnostics.cpp`，可以单独运行 `diagnostics_tests` 验证。

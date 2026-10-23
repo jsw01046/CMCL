@@ -139,6 +139,53 @@ int main() {
     CHECK(summary.normal);
     CHECK(summary.severity == "info");
 
+    // 旧 Forge / 模组在 Java 9+ 上把 AppClassLoader 强转为 URLClassLoader。
+    // 即使进程返回 0，也必须判为异常并给出 Java 8 建议。
+    summary = analyze_run(
+        0,
+        {"Exception in thread \"main\" java.lang.ClassCastException: class "
+         "jdk.internal.loader.ClassLoaders$AppClassLoader cannot be cast to "
+         "class java.net.URLClassLoader"});
+    CHECK(!summary.normal);
+    CHECK(summary.findings.front().id == "java.legacy_classloader");
+    CHECK(summary.title.find("Java 8") != std::string::npos);
+
+    // FML 二进制补丁器空指针（1.6.4 - 1.12.2 常见）。
+    summary = analyze_run(
+        0,
+        {"[严重] [ForgeModLoader] Unable to launch",
+         "java.lang.RuntimeException: java.lang.NullPointerException",
+         "at cpw.mods.fml.common.patcher.ClassPatchManager.applyPatch("
+         "ClassPatchManager.java:101)",
+         "at cpw.mods.fml.common.asm.transformers.deobf."
+         "FMLDeobfuscatingRemapper.getFieldType(FMLDeobfuscatingRemapper.java:225)"});
+    CHECK(!summary.normal);
+    CHECK(summary.findings.front().id == "forge.binary_patch");
+    CHECK(summary.detail.find("非 ASCII") != std::string::npos);
+
+    // 没有补丁细节时，FML 的 Unable to launch 也要被识别。
+    summary = analyze_run(0, {"[ForgeModLoader] Unable to launch"});
+    CHECK(!summary.normal);
+    CHECK(summary.findings.front().id == "forge.launch_failure");
+
+    // JDK 被清理工具误删 lib/tzdb.dat。
+    summary = analyze_run(
+        1,
+        {"java.lang.Error: java.io.FileNotFoundException: "
+         "C:\\Users\\me\\.jdks\\jdk-21\\lib\\tzdb.dat (系统找不到指定的文件。)"});
+    CHECK(summary.findings.front().id == "java.install_corrupt");
+    CHECK(summary.detail.find("tzdb.dat") != std::string::npos);
+
+    // bspkrsCore 的更新检查器访问失效地址后数组越界。
+    summary = analyze_run(
+        1,
+        {"java.lang.ArrayIndexOutOfBoundsException: 0",
+         "at bspkrs.util.ModVersionChecker.<init>(ModVersionChecker.java:62)"});
+    CHECK(summary.findings.front().id == "mod.version_checker");
+    CHECK(summary.detail.find("allowUpdateCheck") != std::string::npos ||
+          summary.findings.front().suggestions.front().find("allowUpdateCheck") !=
+              std::string::npos);
+
     std::cout << "diagnostics_test: all checks passed\n";
     return 0;
 }

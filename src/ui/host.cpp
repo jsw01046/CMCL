@@ -12,6 +12,7 @@
 #include <ctime>
 #include <fstream>
 #include <system_error>
+#include <thread>
 
 #include "core/encoding.h"
 #include "core/log.h"
@@ -100,6 +101,104 @@ int classpath_count(const std::string& classpath) {
         if (c == ';') ++count;
     }
     return count;
+}
+
+struct GameWindowSearch {
+    DWORD pid = 0;
+    HWND window = nullptr;
+};
+
+BOOL CALLBACK find_game_window_proc(HWND hwnd, LPARAM param) {
+    auto* search = reinterpret_cast<GameWindowSearch*>(param);
+    DWORD pid = 0;
+    ::GetWindowThreadProcessId(hwnd, &pid);
+    if (pid != search->pid) return TRUE;
+    if (::GetWindow(hwnd, GW_OWNER) != nullptr) return TRUE;
+    if ((::GetWindowLongPtrW(hwnd, GWL_EXSTYLE) & WS_EX_TOOLWINDOW) != 0) {
+        return TRUE;
+    }
+    if (!::IsWindowVisible(hwnd)) return TRUE;
+    wchar_t title[256]{};
+    if (::GetWindowTextW(hwnd, title, 256) == 0) return TRUE;
+    RECT client{};
+    if (!::GetClientRect(hwnd, &client)) return TRUE;
+    if (client.right - client.left < 160 || client.bottom - client.top < 120) {
+        return TRUE;
+    }
+    search->window = hwnd;
+    return FALSE;
+}
+
+HWND find_game_window(DWORD pid) {
+    GameWindowSearch search;
+    search.pid = pid;
+    ::EnumWindows(&find_game_window_proc, reinterpret_cast<LPARAM>(&search));
+    return search.window;
+}
+
+// 启动参数只支持 --width/--height，窗口初始位置由 LWJGL 决定，
+// 多显示器或缩放环境下经常落在主屏左上角甚至屏幕外。
+// 这里等游戏主窗口出现后，把它摆到启动器所在显示器的中央。
+void center_game_window(HWND owner, unsigned long pid) {
+    const DWORD target_pid = static_cast<DWORD>(pid);
+    HANDLE process = ::OpenProcess(
+        SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION, FALSE, target_pid);
+
+    HWND game = nullptr;
+    // 大型整合包初始化可能要一两分钟，留足等待时间。
+    for (int attempt = 0; attempt < 360; ++attempt) {
+        if (process != nullptr) {
+            if (::WaitForSingleObject(process, 250) != WAIT_TIMEOUT) break;
+        } else {
+            ::Sleep(250);
+        }
+        game = find_game_window(target_pid);
+        if (game != nullptr) break;
+    }
+    if (game == nullptr) {
+        if (process != nullptr) ::CloseHandle(process);
+        return;
+    }
+
+    // 给游戏一点时间完成自己的窗口初始化（SetLocation / 全屏切换），
+    // 免得刚摆好又被它改回去。
+    ::Sleep(1500);
+    if (!::IsWindow(game) || find_game_window(target_pid) != game) {
+        if (process != nullptr) ::CloseHandle(process);
+        return;
+    }
+    if (process != nullptr) ::CloseHandle(process);
+
+    if (::IsZoomed(game) || ::IsIconic(game)) return;
+
+    RECT current{};
+    if (!::GetWindowRect(game, &current)) return;
+    const int width = current.right - current.left;
+    const int height = current.bottom - current.top;
+    if (width <= 0 || height <= 0) return;
+
+    HMONITOR monitor = nullptr;
+    if (owner != nullptr && ::IsWindow(owner)) {
+        monitor = ::MonitorFromWindow(owner, MONITOR_DEFAULTTOPRIMARY);
+    }
+    if (monitor == nullptr) {
+        monitor = ::MonitorFromWindow(game, MONITOR_DEFAULTTOPRIMARY);
+    }
+    MONITORINFO info{};
+    info.cbSize = sizeof(info);
+    if (!::GetMonitorInfoW(monitor, &info)) return;
+
+    // 无边框全屏（窗口正好铺满显示器）时保持原样。
+    const int monitor_width = info.rcMonitor.right - info.rcMonitor.left;
+    const int monitor_height = info.rcMonitor.bottom - info.rcMonitor.top;
+    if (width >= monitor_width && height >= monitor_height) return;
+
+    const RECT& work = info.rcWork;
+    const int x = work.left + ((work.right - work.left) - width) / 2;
+    const int y = work.top + ((work.bottom - work.top) - height) / 2;
+    if (x == current.left && y == current.top) return;
+    ::SetWindowPos(game, nullptr, x, y, 0, 0,
+                   SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
 }
 
 } // namespace
@@ -789,6 +888,7 @@ void Host::rpc_instance_list(int id, const nlohmann::json& params) {
     for (const auto& instance : instances.value()) {
         nlohmann::json entry = {
             {"id", instance.id},
+            {"display_name", instance.display_name},
             {"type", instance.type},
             {"loader", instance.loader},
             {"main_class", instance.main_class},
@@ -2049,6 +2149,17 @@ void Host::rpc_game_launch(int id, const nlohmann::json& params) {
         }
         launching_ = false;
         reply_ok(id, {{"started", true}, {"pid", pid}});
+
+        // 全屏启动时不动窗口；窗口模式把游戏窗口摆到启动器所在屏幕中央。
+        if (!options.fullscreen) {
+            const HWND owner = hwnd_;
+            try {
+                std::thread([owner, pid]() { center_game_window(owner, pid); })
+                    .detach();
+            } catch (const std::system_error& error) {
+                Log::warn(std::string("无法调整游戏窗口位置：") + error.what());
+            }
+        }
 
         Process* running = nullptr;
         {

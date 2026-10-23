@@ -289,6 +289,17 @@ Result<std::vector<InstanceSummary>> scan_instances(
         InstanceSummary summary;
         summary.id = path_to_utf8(folder);
 
+        const std::filesystem::path meta_path = dir / L"cmcl-modpack.json";
+        if (std::filesystem::is_regular_file(meta_path, ec)) {
+            if (auto meta = load_json(meta_path);
+                meta && meta.value().is_object()) {
+                if (const auto it = meta.value().find("name");
+                    it != meta.value().end() && it->is_string()) {
+                    summary.display_name = it->get<std::string>();
+                }
+            }
+        }
+
         const std::filesystem::path json_path = dir / (folder + L".json");
         if (!std::filesystem::exists(json_path, ec)) {
             summary.valid = false;

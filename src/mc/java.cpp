@@ -409,6 +409,15 @@ int required_java_major(const ResolvedVersion& version) {
             required = 21;
         }
     }
+    // 有些 PCL 整合包的版本 JSON 没有 inheritsFrom / javaVersion，
+    // 无法从版本号推断原版。LaunchWrapper 时代的 Forge（1.6.4 - 1.12.2）
+    // 必须用 Java 8：Java 9+ 的系统类加载器不再是 URLClassLoader，
+    // 旧 Forge 会直接抛 ClassCastException。
+    if (!vanilla && version.merged.main_class &&
+        version.merged.main_class->find("launchwrapper") !=
+            std::string::npos) {
+        return 8;
+    }
     return required;
 }
 

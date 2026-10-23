@@ -12,6 +12,7 @@ namespace cl::mc {
 
 struct InstanceSummary {
     std::string id;
+    std::string display_name;  // 整合包原始名称；普通实例为空
     std::string type;
     std::string loader;  // vanilla / forge / neoforge / fabric / quilt / optifine
     std::string main_class;

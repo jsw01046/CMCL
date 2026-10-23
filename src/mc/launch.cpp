@@ -512,7 +512,14 @@ Result<PreparedLaunch> prepare_launch(const LaunchOptions& options,
     if (!std::filesystem::is_regular_file(client_jar, ec)) {
         return Error::make(5, "缺少客户端 jar", path_to_utf8(client_jar));
     }
-    if (is_forge_like) {
+    // 只有 1.13+ 的 Forge/NeoForge（BootstrapLauncher / ModLauncher）才需要
+    // 把原版 jar 从 classpath 排除。1.6.4 - 1.12.2 的 Forge 使用 LaunchWrapper，
+    // 原版 jar 必须在 classpath 里，否则 FML 找不到客户端类，会按服务端处理，
+    // 然后去补服务端专属类，触发 ClassPatchManager 的空指针。
+    const bool legacy_launchwrapper =
+        version.merged.main_class &&
+        version.merged.main_class->find("launchwrapper") != std::string::npos;
+    if (is_forge_like && !legacy_launchwrapper) {
         Log::info("Forge/NeoForge 实例，原版 jar 不加入 classpath：" +
                   path_to_utf8(client_jar));
     } else {
