@@ -1,0 +1,17 @@
+{
+    "cmake.useCMakePresets": "always",
+    "cmake.configureOnOpen": false,
+    "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
+    "C_Cpp.default.cppStandard": "c++20",
+    "C_Cpp.default.intelliSenseMode": "windows-msvc-x64",
+    "C_Cpp.default.defines": [
+        "NOMINMAX",
+        "UNICODE",
+        "_UNICODE",
+        "WIN32_LEAN_AND_MEAN",
+        "_CRT_SECURE_NO_WARNINGS"
+    ],
+    "files.associations": {
+        "*.manifest": "xml"
+    }
+}

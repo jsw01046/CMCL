@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>CMCL - C++ Minecraft Launcher</title>
+    <link rel="icon" href="favicon.png" type="image/png">
+    <link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div class="app">
+    <aside class="sidebar">
+        <div class="brand">
+            <div class="logo"><img src="icon.png" alt="CMCL"></div>
+            <div class="brand-text">
+                <div class="brand-title">CMCL <span id="version" class="brand-version">0.5.1</span></div>
+                <div class="brand-sub">C++ Minecraft Launcher</div>
+            </div>
+        </div>
+
+        <nav class="nav" id="nav">
+            <button class="nav-item" data-route="#/launch" data-nav="launch">
+                <span class="nav-icon">▶</span><span>启动</span>
+            </button>
+            <button class="nav-item" data-route="#/instances" data-nav="instances">
+                <span class="nav-icon">▦</span><span>版本管理</span>
+            </button>
+            <button class="nav-item" data-route="#/download" data-nav="download">
+                <span class="nav-icon">↓</span><span>下载</span>
+            </button>
+            <button class="nav-item" data-route="#/settings" data-nav="settings">
+                <span class="nav-icon">⚙</span><span>设置</span>
+            </button>
+        </nav>
+
+        <div id="sidebar-slot" class="sidebar-slot"></div>
+        <div id="sidebar-footer" class="sidebar-footer"></div>
+    </aside>
+
+    <main class="main">
+        <header class="topbar" id="titlebar">
+            <div id="breadcrumb" class="breadcrumb">启动</div>
+            <div id="top-actions" class="top-actions"></div>
+            <div class="window-controls">
+                <button class="window-btn" id="window-min" type="button" title="最小化" aria-label="最小化">
+                    <svg viewBox="0 0 10 10" aria-hidden="true"><path d="M2.5 5.5h5"/></svg>
+                </button>
+                <button class="window-btn" id="window-max" type="button" title="最大化" aria-label="最大化">
+                    <svg viewBox="0 0 10 10" aria-hidden="true"><rect x="2.5" y="2.5" width="5" height="5" rx=".6"/></svg>
+                </button>
+                <button class="window-btn close" id="window-close" type="button" title="关闭" aria-label="关闭">
+                    <svg viewBox="0 0 10 10" aria-hidden="true"><path d="M2.5 2.5l5 5M7.5 2.5l-5 5"/></svg>
+                </button>
+            </div>
+        </header>
+
+        <section id="page" class="page"></section>
+
+        <footer class="statusbar">
+            <span id="status">就绪</span>
+            <span id="global-download" class="global-download hidden"></span>
+            <span class="spacer"></span>
+            <span id="mc-path" class="muted"></span>
+        </footer>
+    </main>
+</div>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

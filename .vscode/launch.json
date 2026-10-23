@@ -1,0 +1,27 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "CMCL UI (Debug)",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/vs2026-x64/Debug/cmcl-ui.exe",
+            "args": [],
+            "cwd": "${workspaceFolder}/build/vs2026-x64/Debug",
+            "console": "integratedTerminal",
+            "preLaunchTask": "CMake: build Debug"
+        },
+        {
+            "name": "CMCL CLI: list",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/vs2026-x64/Debug/cmcl.exe",
+            "args": [
+                "list"
+            ],
+            "cwd": "${workspaceFolder}/build/vs2026-x64/Debug",
+            "console": "integratedTerminal",
+            "preLaunchTask": "CMake: build Debug"
+        }
+    ]
+}

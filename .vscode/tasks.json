@@ -1,0 +1,44 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "CMake: configure (vs2026-x64)",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "--preset",
+                "vs2026-x64"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "CMake: build Debug",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "${workspaceFolder}/build/vs2026-x64",
+                "--config",
+                "Debug",
+                "--parallel"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": [
+                "$msCompile"
+            ]
+        },
+        {
+            "label": "Run CMCL UI",
+            "type": "shell",
+            "command": "\"${workspaceFolder}/build/vs2026-x64/Debug/cmcl-ui.exe\"",
+            "dependsOn": "CMake: build Debug",
+            "problemMatcher": []
+        }
+    ]
+}

@@ -1,0 +1,10 @@
+{
+  "name": "craftlauncher",
+  "version-string": "0.5.1",
+  "description": "A from-scratch C++ Minecraft launcher core, taking architectural lessons from PCL2.",
+  "dependencies": [
+    "nlohmann-json",
+    "webview2",
+    "zlib"
+  ]
+}
